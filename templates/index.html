@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Upload for Text Extraction</title>
+    <!-- <link rel="stylesheet" href="style.css"> -->
+    <style>
+        body {
+    font-family: Arial, sans-serif;
+    background-color: #f8f9fc;
+    color: #333;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+}
+
+.container {
+    text-align: center;
+    max-width: 600px;
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    font-size: 24px;
+    font-weight: bold;
+    color: #333;
+}
+
+.description {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.upload-box {
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 30px;
+    margin-top: 20px;
+    background-color: #f9fafc;
+}
+
+.upload-box:hover {
+    border-color: #999;
+}
+
+.upload-icon {
+    font-size: 48px;
+    color: #ccc;
+}
+
+.upload-text {
+    font-size: 14px;
+    color: #777;
+    margin-top: 10px;
+}
+
+button {
+    background-color: #0066ff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0051cc;
+}
+
+.note {
+    font-size: 12px;
+    color: #999;
+    margin-top: 20px;
+}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hình ảnh thành Văn bản</h1>
+        <div class="upload-box">
+            <form action="/upload" method="post" enctype="multipart/form-data">
+                <div class="upload-icon">📷</div>
+                <p class="upload-text">Kéo và Thả, Tải lên hoặc Dán hình ảnh</p>
+                <input type="file" name="files[]" multiple>
+                <input type="submit" value="Duyệt">
+            </form>
+        </div>
+        {% if extracted_texts %}
+        <h2>Text</h2>
+        <div id="extracted-texts">
+            {% for text in extracted_texts %}
+                <pre style="text-align: left;">{{ text }}</pre>
+            {% endfor %}
+        </div>
+        <a href="{{ url_for('download_file', filename=output_file)}}">
+            <button>Download Extracted Text as Excel</button>
+        </a>
+        {% endif %}
+    </div>
+</body>
+</html>
