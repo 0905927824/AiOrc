@@ -78,6 +78,22 @@ def extract_text_from_image(image_path):
 # Function to save text from multiple images to Excel
 def save_multiple_images_to_excel(image_paths, output_file):
     all_data = []
+    fields = ["Day", "BF Power (max)", "Distance", "Threshold", "Range", "Gain", "Freq L", "Freq H", "Avg", "LFE index"]
+    
+    # Dictionary mapping standardized fields to lists of possible variations
+    field_aliases = {
+        "Day": ["Day"],
+        "BF Power (max)": ["BF Power (max)", "Power BF", "BF Power (max).", "Power","BF Power ( }", "iF Power (max)."],
+        "Distance": ["Distance", "Dist","Ontagce","Distance."],
+        "Threshold": ["Threshold", "Thresh","Threshold."],
+        "Range": ["Range","Range."],
+        "Gain": ["Gain"],
+        "Freq L": ["Freq L", "Frequency Low", "Freq Low","Freq L.","Freq t"],
+        "Freq H": ["Freq H", "Frequency High", "Freq High"],
+        "Avg": ["Avg", "Average", "ave"],
+        "LFE index": ["LFE index", "lSi index", "L Index", "Indes", "index"]
+    }
+
     for image_path in image_paths:
         text = extract_text_from_image(image_path)
         if text:
@@ -85,21 +101,46 @@ def save_multiple_images_to_excel(image_paths, output_file):
             if len(lines) < 4:
                 continue
 
-            data_dict = {}
+            # Initialize a dictionary with all fields as empty strings
+            data_dict = {field: "" for field in fields}
+            
+            # Set 'Day' field
             day = f"{lines[0].strip()} {lines[1].strip()}"
             data_dict['Day'] = day
 
+            # Fill in data for other fields
             for line in lines[2:]:
                 if line.strip():
                     key_value = line.split(':', 1)
                     if len(key_value) == 2:
                         key, value = key_value
-                        data_dict[key.strip()] = value.strip()
+                        key = key.strip()
+                        value = value.strip()
+
+                        # Match the extracted key with possible aliases in field_aliases
+                        for field, aliases in field_aliases.items():
+                            if any(alias.lower() in key.lower() for alias in aliases):
+                                # Only take the first number for specific fields
+                                if field in ["BF Power (max)", "Distance", "Threshold", "Range", "Gain", "Freq L", "Freq H", "LFE index"]:
+                                    first_number = extract_first_number(value)
+                                    data_dict[field] = first_number if first_number is not None else ""
+                                else:
+                                    data_dict[field] = value
+                                break
 
             all_data.append(data_dict)
 
-    df = pd.DataFrame(all_data)
+    # Create DataFrame and write to Excel
+    df = pd.DataFrame(all_data, columns=fields)
     df.to_excel(output_file, index=False)
+
+def extract_first_number(value):
+    import re
+    # Extract the first number found in the value string
+    match = re.search(r"\d+(\.\d+)?", value)  # Match integers or decimals
+    return match.group(0) if match else None
+
+
 
 # Route for the home page
 @app.route('/')
