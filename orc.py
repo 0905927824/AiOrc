@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from flask import Flask, request, render_template, send_file, redirect, url_for, jsonify
 from io import BytesIO
+import time
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -164,12 +165,11 @@ def upload_file():
             text = extract_text_from_image(filepath)
             extracted_texts.append(text)
     
-    # Ensure the output path is correct and does not repeat `uploads`
-    output_file = os.path.join(app.config['UPLOAD_FOLDER'], 'output.xlsx')
+    output_filename = f'output_{int(time.time())}.xlsx'
+    output_file = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
     save_multiple_images_to_excel(image_paths, output_file)
 
-    # Pass only the filename (not full path) to the template for download
-    return render_template('index.html', extracted_texts=extracted_texts, output_file='output.xlsx')
+    return render_template('index.html', extracted_texts=extracted_texts, output_file=output_filename)
 
 @app.route('/download/<filename>')
 def download_file(filename):
