@@ -80,7 +80,13 @@ button:hover {
     color: #999;
     margin-top: 20px;
 }
-
+#extracted-texts {
+        max-height: 400px; /* Adjust as needed */
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-top: 20px;
+}
     </style>
 </head>
 <body>
@@ -99,6 +105,7 @@ button:hover {
         <div id="extracted-texts">
             {% for text in extracted_texts %}
                 <pre style="text-align: left;">{{ text }}</pre>
+                <p>---------------------</p>
             {% endfor %}
         </div>
         <a href="{{ url_for('download_file', filename=output_file)}}">
