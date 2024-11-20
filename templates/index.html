@@ -96,7 +96,7 @@ button:hover {
             <form action="/upload" method="post" enctype="multipart/form-data">
                 <div class="upload-icon">📷</div>
                 <p class="upload-text">Kéo và Thả, Tải lên hoặc Dán hình ảnh</p>
-                <input type="file" name="files[]" multiple>
+                <input type="file" name="files[]" multiple onchange="validateFileCount(this)">
                 <input type="submit" value="Duyệt">
             </form>
         </div>
@@ -115,3 +115,12 @@ button:hover {
     </div>
 </body>
 </html>
+<script>
+    function validateFileCount(input) {
+        const maxFiles = 100;
+        if (input.files.length > maxFiles) {
+            alert(`Bạn chỉ được tải lên tối đa ${maxFiles} hình ảnh.`);
+            input.value = ""; // Reset file input
+        }
+    }
+</script>

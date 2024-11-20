@@ -5,9 +5,8 @@ from PIL import Image
 import numpy as np
 import pandas as pd
 from flask import Flask, request, render_template, send_file, redirect, url_for, jsonify
-from io import BytesIO
 import time
-
+import re
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
@@ -22,7 +21,7 @@ def allowed_file(filename):
 def preprocess_image(image_path):
     # Load the image
     img = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    img = cv2.resize(img, None, fx=1.5, fy=1.5, interpolation=cv2.INTER_LINEAR)
+    img = cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR)
 
     lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
     l, a, b = cv2.split(lab)
@@ -74,25 +73,22 @@ def extract_text_from_image(image_path):
     
     # Extract text using pytesseract
     text = pytesseract.image_to_string(pil_img, lang="eng", config='--psm 6')
-    return text
+
+    # Keep only letters (a-z, A-Z) and numbers (0-9) using regex
+    filtered_text = re.sub(r'[^a-zA-Z0-9\s . :]', '', text)  # Removes anything except letters and numbers
+    
+    return filtered_text
 
 # Function to save text from multiple images to Excel
 def save_multiple_images_to_excel(image_paths, output_file):
     all_data = []
-    fields = ["Day", "BF Power (max)", "Distance", "Threshold", "Range", "Gain", "Freq L", "Freq H", "Avg", "LFE index"]
-    
+    fields = ["Day", "Distance", "LFE index"]
+
     # Dictionary mapping standardized fields to lists of possible variations
     field_aliases = {
         "Day": ["Day"],
-        "BF Power (max)": ["BF Power (max)", "Power BF", "BF Power (max).", "Power","BF Power ( }", "iF Power (max)."],
-        "Distance": ["Distance", "Dist","Ontagce","Distance."],
-        "Threshold": ["Threshold", "Thresh","Threshold."],
-        "Range": ["Range","Range."],
-        "Gain": ["Gain"],
-        "Freq L": ["Freq L", "Frequency Low", "Freq Low","Freq L.","Freq t"],
-        "Freq H": ["Freq H", "Frequency High", "Freq High"],
-        "Avg": ["Avg", "Average", "ave"],
-        "LFE index": ["LFE index", "lSi index", "L Index", "Indes", "index"]
+        "Distance": ["Distance", "Dist", "Ontagce", "Distance.", "Dis", "stan", "sta"],
+        "LFE index": ["LFE index", "lSi index", "L Index", "Indes", "index", "ind", "dex", "des", "de", "FE"]
     }
 
     for image_path in image_paths:
@@ -112,7 +108,13 @@ def save_multiple_images_to_excel(image_paths, output_file):
             # Fill in data for other fields
             for line in lines[2:]:
                 if line.strip():
-                    key_value = line.split(':', 1)
+                    # Try splitting by ':', ',', or space (in that order)
+                    key_value = line.split(':', 1)  # First try splitting by ':'
+                    if len(key_value) != 2:
+                        key_value = line.split(',', 1)  # If no ':', try splitting by ','
+                    if len(key_value) != 2:
+                        key_value = line.split(None, 1)  # If no ':' or ',', try splitting by any whitespace
+
                     if len(key_value) == 2:
                         key, value = key_value
                         key = key.strip()
@@ -121,10 +123,14 @@ def save_multiple_images_to_excel(image_paths, output_file):
                         # Match the extracted key with possible aliases in field_aliases
                         for field, aliases in field_aliases.items():
                             if any(alias.lower() in key.lower() for alias in aliases):
-                                # Only take the first number for specific fields
-                                if field in ["BF Power (max)", "Distance", "Threshold", "Range", "Gain", "Freq L", "Freq H", "LFE index"]:
-                                    first_number = extract_first_number(value)
-                                    data_dict[field] = first_number if first_number is not None else ""
+                                # For "Distance" field, only extract the number (ignoring letters)
+                                if field == "Distance":
+                                    number_only = extract_number_only(value)
+                                    data_dict[field] = number_only if number_only is not None else ""
+                                # For "LFE index" field, extract the first digit of numbers like 53 or 45
+                                elif field == "LFE index":
+                                    first_digit = extract_first_digit(value)
+                                    data_dict[field] = first_digit if first_digit is not None else ""
                                 else:
                                     data_dict[field] = value
                                 break
@@ -136,9 +142,18 @@ def save_multiple_images_to_excel(image_paths, output_file):
     df.to_excel(output_file, index=False)
 
 def extract_first_number(value):
-    import re
-    # Extract the first number found in the value string
+    """Extracts the first number (integer or decimal) from the string."""
     match = re.search(r"\d+(\.\d+)?", value)  # Match integers or decimals
+    return match.group(0) if match else None
+
+def extract_number_only(value):
+    """Extracts only the number from the string, removing any letters or other characters."""
+    match = re.search(r"\d+(\.\d+)?", value)  # Match only integers (ignores letters)
+    return match.group(0) if match else None
+
+def extract_first_digit(value):
+    """Extracts the first digit of the number, if the number is 53 or 45 (just return 5 or 4)."""
+    match = re.match(r"(\d)", value)  # Match the first digit in the string
     return match.group(0) if match else None
 
 
@@ -151,24 +166,41 @@ def index():
 # Route for uploading images
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    # Xóa toàn bộ nội dung trong thư mục 'uploads' trước khi thêm file mới
+    upload_folder = app.config['UPLOAD_FOLDER']
+    if os.path.exists(upload_folder):
+        for file_name in os.listdir(upload_folder):
+            file_path = os.path.join(upload_folder, file_name)
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.remove(file_path)  # Xóa file
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)  # Xóa thư mục con
+            except Exception as e:
+                print(f"Lỗi khi xóa {file_path}: {e}")
+
+    # Kiểm tra xem có file trong request không
     if 'files[]' not in request.files:
         return redirect(request.url)
     files = request.files.getlist('files[]')
     image_paths = []
     extracted_texts = []
+
     for file in files:
         if file and allowed_file(file.filename):
             filename = file.filename
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            filepath = os.path.join(upload_folder, filename)
             file.save(filepath)
             image_paths.append(filepath)
             text = extract_text_from_image(filepath)
             extracted_texts.append(text)
-    
+
+    # Tạo file Excel mới từ dữ liệu đã xử lý
     output_filename = f'output_{int(time.time())}.xlsx'
-    output_file = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+    output_file = os.path.join(upload_folder, output_filename)
     save_multiple_images_to_excel(image_paths, output_file)
 
+    # Trả về giao diện hiển thị kết quả
     return render_template('index.html', extracted_texts=extracted_texts, output_file=output_filename)
 
 @app.route('/download/<filename>')
