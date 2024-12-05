@@ -2,7 +2,11 @@ from flask import Flask, request, render_template, send_file, redirect, url_for
 import os
 import time
 import shutil
-from utils import preprocess_image, extract_text_from_image, save_multiple_images_to_excel
+from utils import extract_text_from_image, save_multiple_images_to_excel
+import os
+
+# Thiết lập biến môi trường cho Google Cloud API key
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "my-project-ocr-443804-0bcbc32881a5.json"
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'

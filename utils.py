@@ -1,57 +1,29 @@
 import os
 import re
 import cv2
-import pytesseract
+from google.cloud import vision
 from PIL import Image
 import numpy as np
 import pandas as pd
 
-# Tiền xử lý ảnh
-def preprocess_image(image_path):
-    img = cv2.imread(image_path, cv2.IMREAD_COLOR)
-    # Phóng to ảnh
-    img = cv2.resize(img, None, fx=3, fy=3, interpolation=cv2.INTER_LINEAR)
-
-    # Tăng cường chất lượng hình ảnh
-    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
-    l, a, b = cv2.split(lab)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    cl = clahe.apply(l)
-    enhanced_img = cv2.merge((cl, a, b))
-    enhanced_img = cv2.cvtColor(enhanced_img, cv2.COLOR_LAB2BGR)
-
-    hsv = cv2.cvtColor(enhanced_img, cv2.COLOR_BGR2HSV)
-    
-    # Phát hiện màu cam và vàng
-    lower_orange = np.array([15, 100, 200], dtype=np.uint8)
-    upper_orange = np.array([25, 255, 255], dtype=np.uint8)
-    lower_yellowish_orange = np.array([10, 100, 180], dtype=np.uint8)
-    upper_yellowish_orange = np.array([20, 255, 255], dtype=np.uint8)
-    
-    mask_orange = cv2.inRange(hsv, lower_orange, upper_orange)
-    mask_yellowish_orange = cv2.inRange(hsv, lower_yellowish_orange, upper_yellowish_orange)
-    combined_mask = cv2.bitwise_or(mask_orange, mask_yellowish_orange)
-    
-    processed_img = enhanced_img.copy()
-    # Tô đen các vùng phát hiện
-    processed_img[combined_mask > 0] = [0, 0, 0]
-    processed_img[combined_mask == 0] = [255, 255, 255]
-
-    gray = cv2.cvtColor(processed_img, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    enhanced = clahe.apply(gray)
-    blurred = cv2.GaussianBlur(enhanced, (5, 5), 0)
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-    
-    return thresh
-
 # Trích xuất văn bản từ ảnh sử dụng OCR
 def extract_text_from_image(image_path):
-    processed_image = preprocess_image(image_path)
-    pil_img = Image.fromarray(processed_image)
-    text = pytesseract.image_to_string(pil_img, lang="eng", config='--psm 6')
-    filtered_text = re.sub(r'[^a-zA-Z0-9\s . :]', '', text)  # Lọc các ký tự không mong muốn
-    return filtered_text
+    # Tạo client cho Vision API
+    client = vision.ImageAnnotatorClient()
+
+    # Đọc file và mã hóa Base64
+    with open(image_path, "rb") as image_file:
+        content = image_file.read()
+
+    image = vision.Image(content=content)
+
+    # Gửi yêu cầu OCR
+    response = client.text_detection(image=image)
+    texts = response.text_annotations
+
+    if texts:
+        return texts[0].description  # Trả về văn bản đầu tiên (toàn bộ văn bản)
+    return ""
 
 # Lưu nhiều ảnh vào file Excel
 def save_multiple_images_to_excel(image_paths, output_file):
